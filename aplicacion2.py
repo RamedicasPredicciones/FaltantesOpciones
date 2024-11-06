@@ -15,7 +15,7 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
     maestro_moleculas_df.columns = maestro_moleculas_df.columns.str.lower().str.strip()
     inventario_api_df.columns = inventario_api_df.columns.str.lower().str.strip()
 
-    # Aquí se usa la columna "faltante" como viene
+    # Usando las columnas como vienen en el archivo de faltantes
     cur_faltantes = faltantes_df['cur'].unique()
     faltante_faltantes = faltantes_df['faltante'].unique()
 
@@ -86,4 +86,3 @@ if uploaded_file:
         )
     else:
         st.warning("No se encontraron alternativas disponibles.")
-
