@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from io import BytesIO
 
 # Cargar archivos privados de manera segura
 @st.cache_data
@@ -71,10 +72,16 @@ if uploaded_file:
     st.write("Archivo procesado correctamente.")
     st.dataframe(resultado_final_df)
 
-    # Botón para descargar el archivo generado
+    # Guardar el archivo generado en memoria para descarga
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        resultado_final_df.to_excel(writer, index=False)
+    output.seek(0)
+
+    # Botón para descargar el archivo
     st.download_button(
         label="Descargar archivo de alternativas",
-        data=resultado_final_df.to_excel(index=False, engine='openpyxl'),
+        data=output,
         file_name='alternativas_disponibles.xlsx',
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
