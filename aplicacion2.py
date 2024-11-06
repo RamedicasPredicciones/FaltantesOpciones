@@ -47,24 +47,22 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
         how='inner'
     )
 
-    # Ordenar por 'codart_faltante', 'opcion_alternativa' y calcular la mejor alternativa
+    # Ordenar por 'codart_faltante' y 'opcion_alternativa' para priorizar las mejores opciones
     alternativas_disponibles_df.sort_values(by=['codart_faltante', 'opcion_alternativa'], inplace=True)
 
     # Seleccionar la mejor alternativa para cada faltante
     mejores_alternativas = []
     for codart_faltante, group in alternativas_disponibles_df.groupby('codart_faltante'):
         faltante_cantidad = group['faltante'].iloc[0]
-        # Filtrar opciones que cumplen con la cantidad necesaria
-        opciones_validas = group[group['cantidad'] >= faltante_cantidad]
-        
-        if not opciones_validas.empty:
-            # Si hay opciones válidas, tomar la mejor (primera por orden)
-            mejor_opcion = opciones_validas.iloc[0]
-        else:
-            # Si no hay suficientes, tomar la mejor opción disponible
-            mejor_opcion = group.iloc[0]
 
-        mejores_alternativas.append(mejor_opcion)
+        # Filtrar opciones que tienen cantidad mayor o igual al faltante y obtener la mejor
+        mejor_opcion = group[group['cantidad'] >= faltante_cantidad].head(1)
+
+        if mejor_opcion.empty:
+            # Si no hay opción suficiente, tomar la mayor cantidad disponible
+            mejor_opcion = group.nlargest(1, 'cantidad')
+
+        mejores_alternativas.append(mejor_opcion.iloc[0])
 
     resultado_final_df = pd.DataFrame(mejores_alternativas)
 
@@ -73,6 +71,7 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
     resultado_final_df = resultado_final_df[columnas_finales]
 
     return resultado_final_df
+    
 # Streamlit UI
 st.title('Generador de Alternativas de Faltantes')
 
