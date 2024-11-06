@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from io import BytesIO
 
 # Cargar archivos privados de manera segura
 @st.cache_data
@@ -15,9 +14,8 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
     maestro_moleculas_df.columns = maestro_moleculas_df.columns.str.lower().str.strip()
     inventario_api_df.columns = inventario_api_df.columns.str.lower().str.strip()
 
-    # Usando las columnas como vienen en el archivo de faltantes
     cur_faltantes = faltantes_df['cur'].unique()
-    faltante_faltantes = faltantes_df['faltante'].unique()
+    codart_faltantes = faltantes_df['codart'].unique()
 
     alternativas_df = maestro_moleculas_df[maestro_moleculas_df['cur'].isin(cur_faltantes)]
 
@@ -31,31 +29,50 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
 
     alternativas_disponibles_df = alternativas_inventario_df[
         (alternativas_inventario_df['cantidad'] > 0) &
-        (alternativas_inventario_df['codart_alternativas'].isin(faltante_faltantes))
+        (alternativas_inventario_df['codart_alternativas'].isin(codart_faltantes))
     ]
-
-    columnas_deseadas = [
-        'codart_alternativas', 'cur', 'opcion_inventario', 'codart_inventario', 'cantidad', 'bodega'
-    ]
-    columnas_presentes = [col for col in columnas_deseadas if col in alternativas_disponibles_df.columns]
-    alternativas_disponibles_df = alternativas_disponibles_df[columnas_presentes]
 
     alternativas_disponibles_df.rename(columns={
-        'codart_alternativas': 'faltante',
+        'codart_alternativas': 'codart_faltante',
         'opcion_inventario': 'opcion_alternativa',
         'codart_inventario': 'codart_alternativa'
     }, inplace=True)
 
-    resultado_final_df = pd.merge(
-        faltantes_df[['cur', 'faltante']],
+    # Agregar la columna `faltante` al hacer merge
+    alternativas_disponibles_df = pd.merge(
+        faltantes_df[['cur', 'codart', 'faltante']],
         alternativas_disponibles_df,
-        left_on=['cur', 'faltante'],
-        right_on=['cur', 'faltante'],
+        left_on=['cur', 'codart'],
+        right_on=['cur', 'codart_faltante'],
         how='inner'
     )
 
-    return resultado_final_df
+    # Ordenar por 'codart_faltante', 'opcion_alternativa' y calcular la mejor alternativa
+    alternativas_disponibles_df.sort_values(by=['codart_faltante', 'opcion_alternativa'], inplace=True)
 
+    # Seleccionar la mejor alternativa para cada faltante
+    mejores_alternativas = []
+    for codart_faltante, group in alternativas_disponibles_df.groupby('codart_faltante'):
+        faltante_cantidad = group['faltante'].iloc[0]
+        # Filtrar opciones que cumplen con la cantidad necesaria
+        opciones_validas = group[group['cantidad'] >= faltante_cantidad]
+        
+        if not opciones_validas.empty:
+            # Si hay opciones válidas, tomar la mejor (primera por orden)
+            mejor_opcion = opciones_validas.iloc[0]
+        else:
+            # Si no hay suficientes, tomar la mejor opción disponible
+            mejor_opcion = group.iloc[0]
+
+        mejores_alternativas.append(mejor_opcion)
+
+    resultado_final_df = pd.DataFrame(mejores_alternativas)
+
+    # Seleccionar las columnas finales deseadas
+    columnas_finales = ['cur', 'codart', 'faltante', 'codart_faltante', 'opcion_alternativa', 'codart_alternativa', 'cantidad', 'bodega']
+    resultado_final_df = resultado_final_df[columnas_finales]
+
+    return resultado_final_df
 # Streamlit UI
 st.title('Generador de Alternativas de Faltantes')
 
@@ -67,22 +84,13 @@ if uploaded_file:
 
     resultado_final_df = procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df)
 
-    if not resultado_final_df.empty:
-        st.write("Archivo procesado correctamente.")
-        st.dataframe(resultado_final_df)
+    st.write("Archivo procesado correctamente.")
+    st.dataframe(resultado_final_df)
 
-        # Guardar el archivo generado en memoria para descarga
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            resultado_final_df.to_excel(writer, index=False)
-        output.seek(0)
-
-        # Botón para descargar el archivo
-        st.download_button(
-            label="Descargar archivo de alternativas",
-            data=output,
-            file_name='alternativas_disponibles.xlsx',
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-    else:
-        st.warning("No se encontraron alternativas disponibles.")
+    # Botón para descargar el archivo generado
+    st.download_button(
+        label="Descargar archivo de alternativas",
+        data=resultado_final_df.to_excel(index=False, engine='openpyxl'),
+        file_name='alternativas_disponibles.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
