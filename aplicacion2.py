@@ -15,9 +15,7 @@ def procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df):
     maestro_moleculas_df.columns = maestro_moleculas_df.columns.str.lower().str.strip()
     inventario_api_df.columns = inventario_api_df.columns.str.lower().str.strip()
 
-    # Renombrar columna 'codart' a 'faltante' en faltantes_df
-    faltantes_df.rename(columns={'codart': 'faltante'}, inplace=True)
-
+    # Aquí se usa la columna "faltante" como viene
     cur_faltantes = faltantes_df['cur'].unique()
     faltante_faltantes = faltantes_df['faltante'].unique()
 
@@ -69,19 +67,23 @@ if uploaded_file:
 
     resultado_final_df = procesar_faltantes(faltantes_df, maestro_moleculas_df, inventario_api_df)
 
-    st.write("Archivo procesado correctamente.")
-    st.dataframe(resultado_final_df)
+    if not resultado_final_df.empty:
+        st.write("Archivo procesado correctamente.")
+        st.dataframe(resultado_final_df)
 
-    # Guardar el archivo generado en memoria para descarga
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        resultado_final_df.to_excel(writer, index=False)
-    output.seek(0)
+        # Guardar el archivo generado en memoria para descarga
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            resultado_final_df.to_excel(writer, index=False)
+        output.seek(0)
 
-    # Botón para descargar el archivo
-    st.download_button(
-        label="Descargar archivo de alternativas",
-        data=output,
-        file_name='alternativas_disponibles.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+        # Botón para descargar el archivo
+        st.download_button(
+            label="Descargar archivo de alternativas",
+            data=output,
+            file_name='alternativas_disponibles.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        st.warning("No se encontraron alternativas disponibles.")
+
